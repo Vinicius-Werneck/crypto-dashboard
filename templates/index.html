@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Painel de Cotações Cripto</title>
+
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: #0f1724;
+      --muted: #94a3b8;
+      --accent: #3b82f6;
+      --green: #22c55e;
+      --red: #ef4444;
+      --orange: #f59e0b;
+      --yellow: #eab308;
+    }
+    html,body { height: 100%; margin: 0; font-family: Inter, system-ui, Arial; background: var(--bg); color: #e6eef6; }
+    .container { max-width: 1800px; margin: 18px auto; padding: 16px; }
+    h1 { margin: 0 0 14px 0; color: #9ae6b4; }
+    
+    .coin-categories { display: flex; gap: 18px; margin-bottom: 18px; flex-wrap: wrap; }
+    .category { background: var(--card); padding: 12px; border-radius: 10px; flex: 1; min-width: 300px; }
+    .category h3 { margin: 0 0 10px 0; color: var(--muted); font-size: 14px; text-transform: uppercase; }
+    .checkboxes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+    .checkboxes label { display: flex; align-items: center; font-size: 13px; cursor: pointer; }
+    .checkboxes input { margin-right: 6px; }
+
+    table { width: 100%; border-collapse: collapse; background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent); border-radius: 8px; overflow: hidden; font-size: 13px; }
+    th, td { padding: 10px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    thead th { background: rgba(255,255,255,0.02); color: var(--muted); text-transform: uppercase; font-size: 11px; }
+    tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+    .green { color: var(--green); }
+    .red { color: var(--red); }
+    .rsi-high { color: var(--red); font-weight: bold; }
+    .rsi-low { color: var(--green); font-weight: bold; }
+    .rsi-normal { color: var(--muted); }
+    .rsi-neutral { color: var(--orange); }
+
+    .proximity-cell { font-size: 16px; text-align: center; font-weight: bold; }
+    .proximity-green { color: var(--green); }
+    .proximity-yellow { color: var(--yellow); }
+    .proximity-red { color: var(--red); }
+    .proximity-black { color: var(--muted); }
+
+    .legend { display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-section { display: flex; gap: 15px; margin-right: 20px; }
+
+    .loading { text-align: center; color: var(--muted); padding: 20px; }
+
+    @media (max-width: 1200px) {
+      .container { max-width: 100%; padding: 10px; }
+      table { font-size: 11px; }
+      th, td { padding: 6px 3px; }
+      .proximity-cell { font-size: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>💹 Painel Cripto - Análise de Extremos</h1>
+
+    <div class="legend">
+      <div class="legend-section">
+        <div class="legend-item"><span class="proximity-red">🔴</span> Perto da MÁXIMA</div>
+        <div class="legend-item"><span class="proximity-green">🟢</span> Perto da MÍNIMA</div>
+        <div class="legend-item"><span class="proximity-yellow">🟡</span> Distância média</div>
+      </div>
+      <div class="legend-section">
+        <div class="legend-item"><span class="proximity-green">🟢</span> Longe da MÁXIMA</div>
+        <div class="legend-item"><span class="proximity-red">🔴</span> Longe da MÍNIMA</div>
+        <div class="legend-item"><span class="proximity-black">⚫</span> Sem dados</div>
+      </div>
+    </div>
+
+    <div class="coin-categories">
+      <div class="category">
+        <h3>💰 Principais</h3>
+        <div class="checkboxes" id="main-coins-selector"></div>
+      </div>
+      
+      <div class="category">
+        <h3>🚀 Altcoins</h3>
+        <div class="checkboxes" id="altcoins-selector"></div>
+      </div>
+      
+      <div class="category">
+        <h3>🎪 Shitcoins</h3>
+        <div class="checkboxes" id="shitcoins-selector"></div>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Moeda</th>
+          <th>Preço (USDT)</th>
+          <th>Variação 24h</th>
+          <th>RSI Diário</th>
+          <th>Máx. Semanal</th>
+          <th>Mín. Semanal</th>
+          <th>Máx. Mensal</th>
+          <th>Mín. Mensal</th>
+        </tr>
+      </thead>
+      <tbody id="price-table">
+        <tr><td colspan="8" class="loading">Carregando dados...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+<script>
+  const MAIN_COINS = {{ main_coins|tojson }};
+  const ALTCOINS = {{ altcoins|tojson }};
+  const SHITCOINS = {{ shitcoins|tojson }};
+  
+  let selectedSymbols = [...MAIN_COINS];
+
+  function renderCoinSelectors() {
+    renderCategory('main-coins-selector', MAIN_COINS, 'main-');
+    renderCategory('altcoins-selector', ALTCOINS, 'alt-');
+    renderCategory('shitcoins-selector', SHITCOINS, 'shit-');
+  }
+
+  function renderCategory(containerId, coins, prefix) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    
+    coins.forEach(sym => {
+      const shortName = sym.replace('USDT', '');
+      const id = `${prefix}${sym}`;
+      const checked = selectedSymbols.includes(sym) ? 'checked' : '';
+      
+      container.innerHTML += `
+        <label>
+          <input type="checkbox" id="${id}" value="${sym}" ${checked}>
+          ${shortName}
+        </label>
+      `;
+    });
+
+    coins.forEach(sym => {
+      const el = document.getElementById(`${prefix}${sym}`);
+      if (el) el.addEventListener('change', updateSelectedSymbols);
+    });
+  }
+
+  function updateSelectedSymbols() {
+    const allCheckboxes = document.querySelectorAll('.checkboxes input[type="checkbox"]');
+    selectedSymbols = Array.from(allCheckboxes)
+      .filter(cb => cb.checked)
+      .map(cb => cb.value);
+    loadPrices();
+  }
+
+  function getRsiClass(rsiValue) {
+    if (rsiValue === null || rsiValue === undefined) return 'rsi-normal';
+    if (rsiValue >= 70) return 'rsi-high';
+    if (rsiValue <= 30) return 'rsi-low';
+    if (rsiValue >= 45 && rsiValue <= 55) return 'rsi-neutral';
+    return 'rsi-normal';
+  }
+
+  function getProximityClass(proximityEmoji) {
+    switch(proximityEmoji) {
+      case '🟢': return 'proximity-green';
+      case '🟡': return 'proximity-yellow';
+      case '🔴': return 'proximity-red';
+      default: return 'proximity-black';
+    }
+  }
+
+  function formatRsi(rsiValue) {
+    if (rsiValue === null || rsiValue === undefined) return '-';
+    return rsiValue.toFixed(1);
+  }
+
+  async function loadPrices() {
+    if (selectedSymbols.length === 0) {
+      document.getElementById("price-table").innerHTML = "<tr><td colspan='8'>Selecione pelo menos uma moeda</td></tr>";
+      return;
+    }
+    
+    const url = `/prices?symbols=${selectedSymbols.join(",")}`;
+    
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      
+      const data = await resp.json();
+      const tbody = document.getElementById("price-table");
+      
+      if (data.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='8'>Nenhum dado disponível</td></tr>";
+        return;
+      }
+      
+      data.sort((a, b) => {
+        const order = { 'BTCUSDT': 1, 'ETHUSDT': 2, 'BNBUSDT': 3 };
+        return (order[a.symbol] || 4) - (order[b.symbol] || 4) || a.symbol.localeCompare(b.symbol);
+      });
+      
+      tbody.innerHTML = "";
+      data.forEach(d => {
+        const changeClass = d.change >= 0 ? "green" : "red";
+        const rsiClass = getRsiClass(d.rsi);
+        const weeklyHighClass = getProximityClass(d.weekly_high);
+        const weeklyLowClass = getProximityClass(d.weekly_low);
+        const monthlyHighClass = getProximityClass(d.monthly_high);
+        const monthlyLowClass = getProximityClass(d.monthly_low);
+        const shortName = d.symbol.replace('USDT', '');
+        const rsiText = formatRsi(d.rsi);
+        
+        tbody.innerHTML += `
+          <tr>
+            <td><strong>${shortName}</strong></td>
+            <td>${Number(d.price).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:8})}</td>
+            <td class="${changeClass}"><strong>${Number(d.change).toFixed(2)}%</strong></td>
+            <td class="${rsiClass}"><strong>${rsiText}</strong></td>
+            <td class="proximity-cell ${weeklyHighClass}">${d.weekly_high}</td>
+            <td class="proximity-cell ${weeklyLowClass}">${d.weekly_low}</td>
+            <td class="proximity-cell ${monthlyHighClass}">${d.monthly_high}</td>
+            <td class="proximity-cell ${monthlyLowClass}">${d.monthly_low}</td>
+          </tr>
+        `;
+      });
+    } catch (err) {
+      console.error("Erro ao carregar preços:", err);
+      document.getElementById("price-table").innerHTML = `<tr><td colspan='8'>Erro ao carregar dados</td></tr>`;
+    }
+  }
+
+  setInterval(loadPrices, 10000);
+
+  document.addEventListener('DOMContentLoaded', () => {
+    renderCoinSelectors();
+    loadPrices();
+  });
+</script>
+</body>
+</html>

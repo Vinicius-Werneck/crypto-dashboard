@@ -2,7 +2,8 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Painel de Cotações Cripto</title>
+  <title>Crypto Pulse - Análise de Extremos em Tempo Real</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
     :root {
@@ -18,6 +19,31 @@
     html,body { height: 100%; margin: 0; font-family: Inter, system-ui, Arial; background: var(--bg); color: #e6eef6; }
     .container { max-width: 1800px; margin: 18px auto; padding: 16px; }
     h1 { margin: 0 0 14px 0; color: #9ae6b4; }
+    .subtitulo { 
+      margin: 0 0 20px 0; 
+      color: var(--muted); 
+      font-size: 14px; 
+      font-style: italic;
+      border-left: 3px solid var(--accent);
+      padding-left: 10px;
+    }
+    
+    /* Controles principais */
+    .controls { display: flex; gap: 20px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
+    .view-toggle { display: flex; background: var(--card); border-radius: 8px; padding: 4px; }
+    .view-toggle button { 
+      padding: 8px 16px; 
+      border: none; 
+      background: transparent; 
+      color: var(--muted); 
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .view-toggle button.active { 
+      background: var(--accent); 
+      color: white; 
+    }
     
     .coin-categories { display: flex; gap: 18px; margin-bottom: 18px; flex-wrap: wrap; }
     .category { background: var(--card); padding: 12px; border-radius: 10px; flex: 1; min-width: 300px; }
@@ -26,11 +52,56 @@
     .checkboxes label { display: flex; align-items: center; font-size: 13px; cursor: pointer; }
     .checkboxes input { margin-right: 6px; }
 
+    /* Tabela */
     table { width: 100%; border-collapse: collapse; background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent); border-radius: 8px; overflow: hidden; font-size: 13px; }
     th, td { padding: 10px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.03); }
     thead th { background: rgba(255,255,255,0.02); color: var(--muted); text-transform: uppercase; font-size: 11px; }
     tbody tr:hover { background: rgba(255,255,255,0.02); }
+    tbody tr { cursor: pointer; transition: background-color 0.2s; }
+    tbody tr.active { background: rgba(59, 130, 246, 0.1); }
 
+    /* Gráficos */
+    .charts-container { 
+      display: none;
+      grid-template-columns: repeat(auto-fit, minmax(600px, 1fr)); 
+      gap: 20px; 
+      margin-bottom: 20px;
+    }
+    .charts-container.active { display: grid; }
+    .chart-card { 
+      background: var(--card); 
+      padding: 15px; 
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .chart-header { 
+      display: flex; 
+      justify-content: between; 
+      align-items: center; 
+      margin-bottom: 10px;
+    }
+    .chart-title { 
+      font-size: 14px; 
+      font-weight: bold; 
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .chart-controls { display: flex; gap: 10px; }
+    .chart-controls button { 
+      padding: 4px 8px; 
+      font-size: 11px; 
+      background: rgba(255,255,255,0.1); 
+      border: none; 
+      border-radius: 4px; 
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .chart-controls button.active { background: var(--accent); color: white; }
+    .chart-wrapper { position: relative; height: 250px; }
+
+    /* Estados visuais */
     .green { color: var(--green); }
     .red { color: var(--red); }
     .rsi-high { color: var(--red); font-weight: bold; }
@@ -50,17 +121,34 @@
 
     .loading { text-align: center; color: var(--muted); padding: 20px; }
 
+    /* Responsividade */
     @media (max-width: 1200px) {
       .container { max-width: 100%; padding: 10px; }
       table { font-size: 11px; }
       th, td { padding: 6px 3px; }
       .proximity-cell { font-size: 14px; }
+      .subtitulo { font-size: 12px; }
+      .charts-container { grid-template-columns: 1fr; }
+      .chart-card { min-width: 100%; }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>💹 Painel Cripto - Análise de Extremos</h1>
+    <h1>📊 Crypto Pulse - Análise de Extremos em Tempo Real</h1>
+    
+    <p class="subtitulo">
+      Página desenvolvida pelo engenheiro da computação: Vinícius Werneck. 
+      E-mail: viniciusonrj@gmail.com
+    </p>
+
+    <!-- Controles de visualização -->
+    <div class="controls">
+      <div class="view-toggle">
+        <button id="view-table" class="active">📋 Visualização em Tabela</button>
+        <button id="view-charts">📈 Gráficos Diários</button>
+      </div>
+    </div>
 
     <div class="legend">
       <div class="legend-section">
@@ -75,40 +163,46 @@
       </div>
     </div>
 
-    <div class="coin-categories">
-      <div class="category">
-        <h3>💰 Principais</h3>
-        <div class="checkboxes" id="main-coins-selector"></div>
-      </div>
-      
-      <div class="category">
-        <h3>🚀 Altcoins</h3>
-        <div class="checkboxes" id="altcoins-selector"></div>
-      </div>
-      
-      <div class="category">
-        <h3>🎪 Shitcoins</h3>
-        <div class="checkboxes" id="shitcoins-selector"></div>
-      </div>
-    </div>
+    <!-- Container dos gráficos -->
+    <div id="charts-container" class="charts-container"></div>
 
-    <table>
-      <thead>
-        <tr>
-          <th>Moeda</th>
-          <th>Preço (USDT)</th>
-          <th>Variação 24h</th>
-          <th>RSI Diário</th>
-          <th>Máx. Semanal</th>
-          <th>Mín. Semanal</th>
-          <th>Máx. Mensal</th>
-          <th>Mín. Mensal</th>
-        </tr>
-      </thead>
-      <tbody id="price-table">
-        <tr><td colspan="8" class="loading">Carregando dados...</td></tr>
-      </tbody>
-    </table>
+    <!-- Tabela de preços -->
+    <div id="table-container">
+      <div class="coin-categories">
+        <div class="category">
+          <h3>💰 Principais</h3>
+          <div class="checkboxes" id="main-coins-selector"></div>
+        </div>
+        
+        <div class="category">
+          <h3>🚀 Altcoins</h3>
+          <div class="checkboxes" id="altcoins-selector"></div>
+        </div>
+        
+        <div class="category">
+          <h3>🎪 Shitcoins</h3>
+          <div class="checkboxes" id="shitcoins-selector"></div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Moeda</th>
+            <th>Preço (USDT)</th>
+            <th>Variação 24h</th>
+            <th>RSI Diário</th>
+            <th>Máx. Semanal</th>
+            <th>Mín. Semanal</th>
+            <th>Máx. Mensal</th>
+            <th>Mín. Mensal</th>
+          </tr>
+        </thead>
+        <tbody id="price-table">
+          <tr><td colspan="8" class="loading">Carregando dados...</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
 <script>
@@ -117,7 +211,36 @@
   const SHITCOINS = {{ shitcoins|tojson }};
   
   let selectedSymbols = [...MAIN_COINS];
+  let currentCharts = new Map(); // Armazena instâncias dos gráficos
+  let currentView = 'table'; // 'table' ou 'charts'
 
+  // Elementos DOM
+  const viewTableBtn = document.getElementById('view-table');
+  const viewChartsBtn = document.getElementById('view-charts');
+  const chartsContainer = document.getElementById('charts-container');
+  const tableContainer = document.getElementById('table-container');
+
+  // Alternar entre visualizações
+  viewTableBtn.addEventListener('click', () => switchView('table'));
+  viewChartsBtn.addEventListener('click', () => switchView('charts'));
+
+  function switchView(view) {
+    currentView = view;
+    
+    // Atualizar botões
+    viewTableBtn.classList.toggle('active', view === 'table');
+    viewChartsBtn.classList.toggle('active', view === 'charts');
+    
+    // Mostrar/ocultar containers
+    tableContainer.style.display = view === 'table' ? 'block' : 'none';
+    chartsContainer.classList.toggle('active', view === 'charts');
+    
+    if (view === 'charts') {
+      renderCharts();
+    }
+  }
+
+  // Renderizar seletores de moedas
   function renderCoinSelectors() {
     renderCategory('main-coins-selector', MAIN_COINS, 'main-');
     renderCategory('altcoins-selector', ALTCOINS, 'alt-');
@@ -152,9 +275,14 @@
     selectedSymbols = Array.from(allCheckboxes)
       .filter(cb => cb.checked)
       .map(cb => cb.value);
+    
     loadPrices();
+    if (currentView === 'charts') {
+      renderCharts();
+    }
   }
 
+  // Funções auxiliares para RSI e formatação
   function getRsiClass(rsiValue) {
     if (rsiValue === null || rsiValue === undefined) return 'rsi-normal';
     if (rsiValue >= 70) return 'rsi-high';
@@ -177,6 +305,7 @@
     return rsiValue.toFixed(1);
   }
 
+  // Carregar dados de preços
   async function loadPrices() {
     if (selectedSymbols.length === 0) {
       document.getElementById("price-table").innerHTML = "<tr><td colspan='8'>Selecione pelo menos uma moeda</td></tr>";
@@ -190,54 +319,208 @@
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       
       const data = await resp.json();
-      const tbody = document.getElementById("price-table");
-      
-      if (data.length === 0) {
-        tbody.innerHTML = "<tr><td colspan='8'>Nenhum dado disponível</td></tr>";
-        return;
-      }
-      
-      data.sort((a, b) => {
-        const order = { 'BTCUSDT': 1, 'ETHUSDT': 2, 'BNBUSDT': 3 };
-        return (order[a.symbol] || 4) - (order[b.symbol] || 4) || a.symbol.localeCompare(b.symbol);
-      });
-      
-      tbody.innerHTML = "";
-      data.forEach(d => {
-        const changeClass = d.change >= 0 ? "green" : "red";
-        const rsiClass = getRsiClass(d.rsi);
-        const weeklyHighClass = getProximityClass(d.weekly_high);
-        const weeklyLowClass = getProximityClass(d.weekly_low);
-        const monthlyHighClass = getProximityClass(d.monthly_high);
-        const monthlyLowClass = getProximityClass(d.monthly_low);
-        const shortName = d.symbol.replace('USDT', '');
-        const rsiText = formatRsi(d.rsi);
-        
-        tbody.innerHTML += `
-          <tr>
-            <td><strong>${shortName}</strong></td>
-            <td>${Number(d.price).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:8})}</td>
-            <td class="${changeClass}"><strong>${Number(d.change).toFixed(2)}%</strong></td>
-            <td class="${rsiClass}"><strong>${rsiText}</strong></td>
-            <td class="proximity-cell ${weeklyHighClass}">${d.weekly_high}</td>
-            <td class="proximity-cell ${weeklyLowClass}">${d.weekly_low}</td>
-            <td class="proximity-cell ${monthlyHighClass}">${d.monthly_high}</td>
-            <td class="proximity-cell ${monthlyLowClass}">${d.monthly_low}</td>
-          </tr>
-        `;
-      });
+      renderPriceTable(data);
     } catch (err) {
       console.error("Erro ao carregar preços:", err);
       document.getElementById("price-table").innerHTML = `<tr><td colspan='8'>Erro ao carregar dados</td></tr>`;
     }
   }
 
-  setInterval(loadPrices, 10000);
+  // Renderizar tabela de preços
+  function renderPriceTable(data) {
+    const tbody = document.getElementById("price-table");
+    
+    if (data.length === 0) {
+      tbody.innerHTML = "<tr><td colspan='8'>Nenhum dado disponível</td></tr>";
+      return;
+    }
+    
+    // Ordenar dados
+    data.sort((a, b) => {
+      const order = { 'BTCUSDT': 1, 'ETHUSDT': 2, 'BNBUSDT': 3 };
+      return (order[a.symbol] || 4) - (order[b.symbol] || 4) || a.symbol.localeCompare(b.symbol);
+    });
+    
+    tbody.innerHTML = "";
+    data.forEach(d => {
+      const changeClass = d.change >= 0 ? "green" : "red";
+      const rsiClass = getRsiClass(d.rsi);
+      const weeklyHighClass = getProximityClass(d.weekly_high);
+      const weeklyLowClass = getProximityClass(d.weekly_low);
+      const monthlyHighClass = getProximityClass(d.monthly_high);
+      const monthlyLowClass = getProximityClass(d.monthly_low);
+      const shortName = d.symbol.replace('USDT', '');
+      const rsiText = formatRsi(d.rsi);
+      
+      tbody.innerHTML += `
+        <tr data-symbol="${d.symbol}" onclick="toggleChart('${d.symbol}')">
+          <td><strong>${shortName}</strong></td>
+          <td>${Number(d.price).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:8})}</td>
+          <td class="${changeClass}"><strong>${Number(d.change).toFixed(2)}%</strong></td>
+          <td class="${rsiClass}"><strong>${rsiText}</strong></td>
+          <td class="proximity-cell ${weeklyHighClass}">${d.weekly_high}</td>
+          <td class="proximity-cell ${weeklyLowClass}">${d.weekly_low}</td>
+          <td class="proximity-cell ${monthlyHighClass}">${d.monthly_high}</td>
+          <td class="proximity-cell ${monthlyLowClass}">${d.monthly_low}</td>
+        </tr>
+      `;
+    });
+  }
 
+  // Função para buscar dados do gráfico
+  async function fetchChartData(symbol, interval = '1d', limit = 30) {
+    try {
+      const response = await fetch(`/chart-data?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+      if (!response.ok) throw new Error('Erro ao buscar dados do gráfico');
+      return await response.json();
+    } catch (error) {
+      console.error('Erro fetching chart data:', error);
+      return null;
+    }
+  }
+
+  // Criar gráfico para uma moeda
+  async function createChart(symbol, container) {
+    const chartData = await fetchChartData(symbol);
+    if (!chartData || !chartData.length) {
+      container.innerHTML = '<div class="loading">Dados não disponíveis</div>';
+      return null;
+    }
+
+    const ctx = document.createElement('canvas');
+    container.innerHTML = '';
+    container.appendChild(ctx);
+
+    const prices = chartData.map(d => d.close);
+    const dates = chartData.map(d => new Date(d.timestamp).toLocaleDateString());
+
+    return new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: dates,
+        datasets: [{
+          label: `Preço ${symbol.replace('USDT', '')} (USDT)`,
+          data: prices,
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false
+          }
+        },
+        scales: {
+          x: {
+            grid: {
+              color: 'rgba(255,255,255,0.05)'
+            },
+            ticks: {
+              color: '#94a3b8',
+              maxTicksLimit: 8
+            }
+          },
+          y: {
+            grid: {
+              color: 'rgba(255,255,255,0.05)'
+            },
+            ticks: {
+              color: '#94a3b8'
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // Renderizar todos os gráficos
+  async function renderCharts() {
+    chartsContainer.innerHTML = '';
+    currentCharts.clear();
+
+    for (const symbol of selectedSymbols) {
+      const chartCard = document.createElement('div');
+      chartCard.className = 'chart-card';
+      chartCard.innerHTML = `
+        <div class="chart-header">
+          <div class="chart-title">
+            <span>${symbol.replace('USDT', '')}</span>
+          </div>
+          <div class="chart-controls">
+            <button class="interval-btn active" data-interval="1d">1D</button>
+            <button class="interval-btn" data-interval="1h">1H</button>
+            <button class="interval-btn" data-interval="15m">15M</button>
+          </div>
+        </div>
+        <div class="chart-wrapper" id="chart-${symbol}">
+          <div class="loading">Carregando gráfico...</div>
+        </div>
+      `;
+      
+      chartsContainer.appendChild(chartCard);
+      
+      // Criar gráfico inicial
+      const chartWrapper = chartCard.querySelector('.chart-wrapper');
+      const chart = await createChart(symbol, chartWrapper);
+      if (chart) {
+        currentCharts.set(symbol, chart);
+      }
+
+      // Adicionar event listeners para os botões de intervalo
+      chartCard.querySelectorAll('.interval-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const interval = e.target.dataset.interval;
+          
+          // Atualizar botões ativos
+          chartCard.querySelectorAll('.interval-btn').forEach(b => b.classList.remove('active'));
+          e.target.classList.add('active');
+          
+          // Atualizar gráfico
+          chartWrapper.innerHTML = '<div class="loading">Carregando...</div>';
+          const newChart = await createChart(symbol, chartWrapper, interval);
+          if (newChart) {
+            currentCharts.set(symbol, newChart);
+          }
+        });
+      });
+    }
+  }
+
+  // Alternar visibilidade do gráfico individual
+  function toggleChart(symbol) {
+    const chartElement = document.getElementById(`chart-${symbol}`);
+    if (chartElement) {
+      chartElement.style.display = chartElement.style.display === 'none' ? 'block' : 'none';
+    }
+  }
+
+  // Atualizar dados periodicamente
+  setInterval(() => {
+    loadPrices();
+    if (currentView === 'charts') {
+      // Atualizar gráficos existentes
+      currentCharts.forEach((chart, symbol) => {
+        // Aqui você pode implementar a atualização dos dados do gráfico
+      });
+    }
+  }, 10000);
+
+  // Inicialização
   document.addEventListener('DOMContentLoaded', () => {
     renderCoinSelectors();
     loadPrices();
   });
+
 </script>
 </body>
 </html>

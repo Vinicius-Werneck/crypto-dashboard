@@ -1,5 +1,6 @@
 from flask import Flask, render_template, jsonify, request
 import requests
+import os
 
 app = Flask(__name__)
 
@@ -191,5 +192,44 @@ def prices():
 
     return jsonify(result)
 
+@app.route("/chart-data")
+def chart_data():
+    """
+    Retorna dados históricos para os gráficos
+    /chart-data?symbol=BTCUSDT&interval=1d&limit=30
+    """
+    symbol = request.args.get("symbol", "BTCUSDT")
+    interval = request.args.get("interval", "1d")
+    limit = int(request.args.get("limit", "30"))
+    
+    try:
+        params = {
+            "symbol": symbol,
+            "interval": interval,
+            "limit": limit
+        }
+        klines = requests.get(BINANCE_KLINES_URL, params=params, timeout=10).json()
+        
+        if not isinstance(klines, list):
+            return jsonify([])
+        
+        data = []
+        for k in klines:
+            data.append({
+                "timestamp": k[0],
+                "open": float(k[1]),
+                "high": float(k[2]),
+                "low": float(k[3]),
+                "close": float(k[4]),
+                "volume": float(k[5])
+            })
+        
+        return jsonify(data)
+    except Exception as e:
+        print(f"Erro ao buscar dados do gráfico: {e}")
+        return jsonify([])
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    #app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=5000)
